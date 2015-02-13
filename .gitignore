@@ -1,0 +1,5 @@
+scrapy/nyvendors/.idea
+*.pyc
+out.csv
+out.json
+aggregation/temp

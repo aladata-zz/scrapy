@@ -1,0 +1,106 @@
+INSTALLATION
+------------------------------
+$brew install python
+#todo: rework this step to pip install -r dependencies.txt
+$pip install scrapy
+$pip install service_identity
+$pip install psycopg2
+$brew install postgres
+
+Configure Postgres
+--------------------
+$ pgstart
+$ createdb plank
+$ psql template1
+template1=# create user uplank with encrypted password 'pplank';
+template1=# GRANT ALL PRIVILEGES ON DATABASE plank to uplank;
+template1=# \q
+$ psql plank
+plank=# CREATE EXTENSION "uuid-ossp";
+plank=# create extension adminpack;
+plank=> \q
+$ psql plank -U uplank
+plank=> \q
+
+Install pgAdmin client: 
+download & install from http://www.postgresql.org/ftp/pgadmin3/release/
+create connection to plank db.
+
+Load plank db from dump file
+----------------------------------
+generate dump file: $ pg_dump plank > plank.dump
+load db from dump: grab plank.dump.zip from Google Drive and decompress
+$ psql plank < plank.dump
+
+git commit -m "info about loading db dump
+
+Optional: Manual NY Vendors Data Import
+------------------------------
+Cleanse Payments data
+$brew install coreutils gnu-sed
+gsed 's/\t\r//g;s/\"//g;s/Non Conact,//g;s/,Non Conact//g' payments.txt > payments.out.txt
+
+update tmp_payments set contract_number = (string_to_array(contract_number, '-'))[2] where contract_number like '%-%-%';
+
+
+RUN UNIT TESTS
+-----------------------
+assuming we are in parent nyvendors
+$ cd nyvendors
+$python -m unittest tests_pipelines
+OR
+$python -m unittest tests_pipelines tests_pipelines_slow
+
+run unit tests for UCC spider
+$python -m unittest tests_spiders
+
+
+SCRAPING
+---------------------
+Logic: this script starts from NY gov vendors contract home page, then submits specific date range, then crawls through all the pages of result set retrieving 3 fields (easy to add more): vendor name, contract number, contract amount.
+
+SCRAPY install
+------------------
+you need to have python: $brew install python (need to have homebrew installed)
+then install scrapy: pip install scrapy
+then unpack code and cd into nyvendors/nyvendors folder.
+
+SPIDERS
+------------------
+
+nycontracts spider
+-----------------
+Logic: this script starts from NY gov vendors contract home page, then submits specific date range, then crawls through all the pages of result set retrieving 3 fields (easy to add more): vendor name, contract number, contract amount.
+
+then run this command (from/to month/year defaults to current month/year):
+$ scrapy crawl nycontracts -o out.csv -L INFO
+OR
+$ scrapy crawl nycontracts -a fromMonth=9 -a fromYear=2013 -a toMonth=10 -a toYear=2014 -L INFO
+
+that will generate csv file. if you want json then replace out.csv with out.json in command above.
+if you open nyvendors/nyvendors/spiders/nyvendors_spider.py you'll see that I'm getting contracts for month of september for 2014 configured on lines 17-20. you can tweak those params to expand the range (i tried more than a year).
+
+
+ucc spider
+------------------------
+assume we are in upper nyvendors foldr
+run the following command if you have smart procure vendor info in json file
+$scrapy crawl ucc -a vendorsFile="sp_vendors.json" -L ERROR
+
+run the following command if you just want to refresh UCC records data for vendors that are already in DB
+$scrapy crawl ucc -L ERROR
+
+hoovers spider
+------------------------
+Spider that scrapes revenue data from Hoovers.com
+run the following command if you just want to refresh revenue data for vendors that are in DB inside sp_vendors table
+$scrapy crawl hoovers -o out.csv -L ERROR
+
+Debugging SCRAPY
+---------------------------
+for example:
+$ scrapy shell 'http://wwe2.osc.state.ny.us/transparency/contracts/contractresults.cfm?sb=a&a=Z0000&ac=&v=%28Enter+Vendor+Name%29&vo=B&cn=&c=-1&m1=11&y1=2014&m2=11&y2=2014&am=0&b=Search'
+>>> response.xpath('//*[@id="tableData"]/tr[2]/td[1]/a/text()').extract()
+
+
+
